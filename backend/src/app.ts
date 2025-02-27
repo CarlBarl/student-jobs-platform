@@ -1,66 +1,74 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import morgan from 'morgan';
-import routes from './api/routes';
-import { errorHandler } from './api/middlewares/errorHandler';
-import logger from './utils/logger';
-import path from 'path';
-import dotenv from 'dotenv';
+import { PrismaClient } from '@prisma/client';
+import { DataCollectionService } from './services/data-collection';
+import { setupRoutes } from './api/routes';
+import { setupMiddlewares } from './api/middlewares';
+import { Logger } from './utils/logger';
 
-// Ladda miljövariabler
-dotenv.config();
-
-const app: Express = express();
-
-// Säkerhetsrelaterade middlewares - GDPR compliance
-app.use(helmet()); // Sätta HTTP-headers
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-// Rate limiting för att förhindra överbelastning/DOS attacker
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minuter
-  max: 100, // max 100 requests per IP
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: 'För många förfrågningar, försök igen senare'
-});
-app.use('/api', limiter);
-
-// Loggning
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-} else {
-  app.use(morgan('combined', { stream: { write: (message) => logger.info(message.trim()) } }));
+export class App {
+  public app: express.Application;
+  public prisma: PrismaClient;
+  private dataCollectionService: DataCollectionService;
+  private logger: Logger;
+  
+  constructor() {
+    this.app = express();
+    this.prisma = new PrismaClient();
+    this.logger = new Logger('App');
+    this.dataCollectionService = new DataCollectionService(this.prisma);
+    
+    this.initializeMiddlewares();
+    this.initializeRoutes();
+  }
+  
+  private initializeMiddlewares(): void {
+    // Security middlewares
+    this.app.use(helmet());
+    this.app.use(cors());
+    this.app.use(express.json());
+    
+    // Setup application middlewares
+    setupMiddlewares(this.app);
+  }
+  
+  private initializeRoutes(): void {
+    setupRoutes(this.app, this.prisma, this.dataCollectionService);
+  }
+  
+  public async start(): Promise<void> {
+    try {
+      // Connect to the database
+      await this.prisma.$connect();
+      this.logger.info('Connected to database');
+      
+      // Initialize and start data collection service
+      this.dataCollectionService.initialize();
+      this.dataCollectionService.start();
+      this.logger.info('Data collection service started');
+      
+      return Promise.resolve();
+    } catch (error) {
+      this.logger.error('Failed to start application', { error });
+      return Promise.reject(error);
+    }
+  }
+  
+  public async stop(): Promise<void> {
+    try {
+      // Stop data collection service
+      this.dataCollectionService.stop();
+      this.logger.info('Data collection service stopped');
+      
+      // Disconnect from the database
+      await this.prisma.$disconnect();
+      this.logger.info('Disconnected from database');
+      
+      return Promise.resolve();
+    } catch (error) {
+      this.logger.error('Failed to stop application', { error });
+      return Promise.reject(error);
+    }
+  }
 }
-
-// Parsers
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-// API-routes
-app.use('/api', routes);
-
-// API-dokumentation
-if (process.env.NODE_ENV === 'development') {
-  app.use('/api-docs', express.static(path.join(__dirname, '../docs/api')));
-}
-
-// Hantera 404
-app.use((req: Request, res: Response) => {
-  res.status(404).json({
-    status: 'error',
-    message: 'Resursen hittades inte'
-  });
-});
-
-// Globalt felhantering
-app.use(errorHandler);
-
-export default app;
