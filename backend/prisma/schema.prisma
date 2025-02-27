@@ -1,0 +1,106 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Datamodeller med GDPR i åtanke
+
+model Job {
+  id                String   @id @default(uuid())
+  title             String
+  company           String
+  location          String
+  description       String
+  applicationUrl    String
+  source            String   // Vilken källa jobbet kommer från
+  educationArea     String?
+  postedDate        DateTime
+  expiryDate        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationer
+  bookmarks         Bookmark[]
+  searchHistory     SearchHistory[]
+  
+  @@index([location, educationArea]) // För effektiv filtrering
+  @@index([postedDate]) // För sortering efter datum
+}
+
+model User {
+  id              String   @id @default(uuid())
+  email           String   @unique
+  // Lösenordet lagras aldrig i klartext
+  passwordHash    String
+  firstName       String?
+  lastName        String?
+  // GDPR: Tracking av användarens samtycke
+  consentVersion  String?
+  consentDate     DateTime?
+  // Dataportabilitet och radering
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  // Datum för anonymisering om användaren begär det
+  anonymizedAt    DateTime?
+  
+  // Relationer
+  bookmarks       Bookmark[]
+  searchHistory   SearchHistory[]
+  // Raderas eller anonymiseras vid användarborttagning
+  preferences     UserPreference?
+  
+  @@index([email])
+}
+
+// Bokmärken för sparade jobb
+model Bookmark {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relationer
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, jobId])
+}
+
+// Användarpreferenser för personalisering
+model UserPreference {
+  id              String   @id @default(uuid())
+  location        String?
+  educationArea   String?
+  jobAlerts       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relationer
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Sökhistorik - med möjlighet att ta bort enligt GDPR
+model SearchHistory {
+  id          String   @id @default(uuid())
+  searchTerm  String
+  createdAt   DateTime @default(now())
+  
+  // Relationer
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Jobb som visats från sökningen
+  jobId       String?
+  job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  
+  @@index([userId, createdAt])
+}

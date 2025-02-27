@@ -1,0 +1,47 @@
+{
+  "dependencies": {
+    "@hookform/resolvers": "^4.1.2",
+    "@prisma/client": "^6.4.1",
+    "axios": "^1.8.1",
+    "bcrypt": "^5.1.1",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "cron": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "formik": "^2.4.6",
+    "helmet": "^8.0.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "prisma": "^6.4.1",
+    "puppeteer": "^24.3.0",
+    "react-hook-form": "^7.54.2",
+    "react-query": "^3.39.3",
+    "swr": "^2.3.2",
+    "winston": "^3.17.0",
+    "zod": "^3.24.2"
+  },
+  "name": "student-jobs-platform",
+  "version": "1.0.0",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarlBarl/student-jobs-platform.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/CarlBarl/student-jobs-platform/issues"
+  },
+  "homepage": "https://github.com/CarlBarl/student-jobs-platform#readme",
+  "description": ""
+}
