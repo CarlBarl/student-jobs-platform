@@ -10,97 +10,291 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Datamodeller med GDPR i åtanke
+// Enums
+enum JobType {
+  part_time
+  full_time
+  internship
+  project
+  thesis
+  summer_job
+}
 
+enum JobStatus {
+  active
+  expired
+  archived
+  draft
+}
+
+// Job Sources
+model JobSource {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String   @unique
+  url           String?
+  description   String?
+  active        Boolean  @default(true)
+  scraperConfig Json?    @map("scraper_config")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  jobs          Job[]
+
+  @@map("job_sources")
+}
+
+// Companies
+model Company {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  website     String?
+  logoUrl     String?  @map("logo_url")
+  description String?
+  industry    String?
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  jobs        Job[]
+
+  @@unique([name, website])
+  @@map("companies")
+}
+
+// Cities
+model City {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  region      String?
+  country     String   @default("Sweden")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  jobCities          JobCity[]
+  userPreferredCities UserPreferredCity[]
+
+  @@unique([name, country])
+  @@map("cities")
+}
+
+// Education Areas
+model EducationArea {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String   @unique
+  description String?
+  parentId    String?  @map("parent_id") @db.Uuid
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  // Self relation for hierarchical structure
+  parent      EducationArea?  @relation("EducationAreaHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    EducationArea[] @relation("EducationAreaHierarchy")
+  
+  // Relations
+  jobEducationAreas    JobEducationArea[]
+  userEducationAreas   UserEducationArea[]
+
+  @@map("education_areas")
+}
+
+// Jobs
 model Job {
-  id                String   @id @default(uuid())
-  title             String
-  company           String
-  location          String
-  description       String
-  applicationUrl    String
-  source            String   // Vilken källa jobbet kommer från
-  educationArea     String?
-  postedDate        DateTime
-  expiryDate        DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id            String    @id @default(uuid()) @db.Uuid
+  title         String
+  description   String
+  requirements  String?
+  jobType       JobType   @map("job_type")
+  status        JobStatus @default(active)
+  companyId     String?   @map("company_id") @db.Uuid
+  sourceId      String?   @map("source_id") @db.Uuid
+  externalId    String?   @map("external_id")
+  applyUrl      String?   @map("apply_url")
+  salaryRange   String?   @map("salary_range")
+  hoursPerWeek  Int?      @map("hours_per_week")
+  remoteOption  Boolean?  @default(false) @map("remote_option")
+  postedAt      DateTime  @map("posted_at") @db.Timestamptz
+  expiresAt     DateTime? @map("expires_at") @db.Timestamptz
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz
   
-  // Relationer
-  bookmarks         Bookmark[]
-  searchHistory     SearchHistory[]
+  // Full-text search field (managed by triggers)
+  searchDocument Unsupported("TSVECTOR")? @map("search_document")
   
-  @@index([location, educationArea]) // För effektiv filtrering
-  @@index([postedDate]) // För sortering efter datum
+  // Relations
+  company      Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source       JobSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  
+  jobCities           JobCity[]
+  jobEducationAreas   JobEducationArea[]
+  bookmarks           Bookmark[]
+
+  @@unique([externalId, sourceId])
+  @@map("jobs")
 }
 
+// Job Cities relation
+model JobCity {
+  jobId           String   @map("job_id") @db.Uuid
+  cityId          String   @map("city_id") @db.Uuid
+  primaryLocation Boolean  @default(false) @map("primary_location")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
+  job             Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  city            City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, cityId])
+  @@map("job_cities")
+}
+
+// Job Education Areas relation
+model JobEducationArea {
+  jobId           String   @map("job_id") @db.Uuid
+  educationAreaId String   @map("education_area_id") @db.Uuid
+  relevance       Int      @default(100)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
+  job             Job            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  educationArea   EducationArea  @relation(fields: [educationAreaId], references: [id], onDelete: Cascade)
+
+  @@id([jobId, educationAreaId])
+  @@map("job_education_areas")
+}
+
+// Users
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  // Lösenordet lagras aldrig i klartext
-  passwordHash    String
-  firstName       String?
-  lastName        String?
-  // GDPR: Tracking av användarens samtycke
-  consentVersion  String?
-  consentDate     DateTime?
-  // Dataportabilitet och radering
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  // Datum för anonymisering om användaren begär det
-  anonymizedAt    DateTime?
+  id                       String    @id @default(uuid()) @db.Uuid
+  email                    String    @unique
+  passwordHash             String    @map("password_hash")
+  firstName                String?   @map("first_name")
+  lastName                 String?   @map("last_name")
+  phone                    String?
+  bio                      String?
+  profilePictureUrl        String?   @map("profile_picture_url")
+  graduationYear           Int?      @map("graduation_year")
+  isActive                 Boolean   @default(true) @map("is_active")
+  emailVerified            Boolean   @default(false) @map("email_verified")
+  consentToDataProcessing  Boolean   @default(false) @map("consent_to_data_processing")
+  consentGivenAt           DateTime? @map("consent_given_at") @db.Timestamptz
+  privacyPolicyVersion     String?   @map("privacy_policy_version")
+  dataRetentionApprovedUntil DateTime? @map("data_retention_approved_until") @db.Timestamptz
+  marketingConsent         Boolean   @default(false) @map("marketing_consent")
+  lastLogin                DateTime? @map("last_login") @db.Timestamptz
+  createdAt                DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt                DateTime  @default(now()) @map("updated_at") @db.Timestamptz
   
-  // Relationer
-  bookmarks       Bookmark[]
-  searchHistory   SearchHistory[]
-  // Raderas eller anonymiseras vid användarborttagning
-  preferences     UserPreference?
-  
-  @@index([email])
+  // Relations
+  userEducationAreas   UserEducationArea[]
+  userPreferredCities  UserPreferredCity[]
+  bookmarks            Bookmark[]
+  searchHistory        SearchHistory[]
+  userActivityLog      UserActivityLog[]
+  gdprDataRequests     GdprDataRequest[]
+
+  @@map("users")
 }
 
-// Bokmärken för sparade jobb
-model Bookmark {
-  id        String   @id @default(uuid())
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// User Education Areas relation
+model UserEducationArea {
+  userId          String   @map("user_id") @db.Uuid
+  educationAreaId String   @map("education_area_id") @db.Uuid
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   
-  // Relationer
-  userId    String
+  // Relations
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  educationArea   EducationArea  @relation(fields: [educationAreaId], references: [id], onDelete: Cascade)
+
+  @@id([userId, educationAreaId])
+  @@map("user_education_areas")
+}
+
+// User Preferred Cities relation
+model UserPreferredCity {
+  userId    String   @map("user_id") @db.Uuid
+  cityId    String   @map("city_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  
+  // Relations
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId     String
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, cityId])
+  @@map("user_preferred_cities")
+}
+
+// Bookmarks
+model Bookmark {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  
+
   @@unique([userId, jobId])
+  @@map("bookmarks")
 }
 
-// Användarpreferenser för personalisering
-model UserPreference {
-  id              String   @id @default(uuid())
-  location        String?
-  educationArea   String?
-  jobAlerts       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  
-  // Relationer
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-// Sökhistorik - med möjlighet att ta bort enligt GDPR
+// Search History
 model SearchHistory {
-  id          String   @id @default(uuid())
-  searchTerm  String
-  createdAt   DateTime @default(now())
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  searchQuery  String?  @map("search_query")
+  filters      Json?
+  resultsCount Int?     @map("results_count")
+  sessionId    String?  @map("session_id")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
   
-  // Relationer
-  userId      String?
-  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  // Jobb som visats från sökningen
-  jobId       String?
-  job         Job?     @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  
-  @@index([userId, createdAt])
+  // Relations
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("search_history")
 }
+
+// User Activity Log
+model UserActivityLog {
+  id          String    @id @default(uuid()) @db.Uuid
+  userId      String?   @map("user_id") @db.Uuid
+  activityType String    @map("activity_type")
+  description String?
+  ipAddress   String?   @map("ip_address")
+  userAgent   String?   @map("user_agent")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  anonymizeAt DateTime? @map("anonymize_at") @db.Timestamptz
+  
+  // Relations
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("user_activity_log")
+}
+
+// GDPR Data Requests
+model GdprDataRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  requestType     String    @map("request_type")
+  status          String    @default("pending")
+  requestedAt     DateTime  @default(now()) @map("requested_at") @db.Timestamptz
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz
+  dataFileUrl     String?   @map("data_file_url")
+  rejectionReason String?   @map("rejection_reason")
+  handlerNotes    String?   @map("handler_notes")
+  
+  // Relations
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("gdpr_data_requests")
+}
+
+// Archive tables are not included in Prisma schema since they are
+// managed by database functions and triggers

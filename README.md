@@ -11,8 +11,8 @@ This platform is designed to connect students with relevant part-time job opport
 ### Frontend
 - **Framework**: Next.js (React)
 - **Styling**: TailwindCSS
-- **Form Handling**: Formik, React Hook Form
-- **Data Fetching**: React Query, SWR
+- **Form Handling**: React Hook Form
+- **Data Fetching**: React Query
 - **Form Validation**: Zod
 
 ### Backend
@@ -21,34 +21,55 @@ This platform is designed to connect students with relevant part-time job opport
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Authentication**: JWT
-- **Validation**: Joi, Zod
-- **Logging**: Winston, Morgan
+- **Validation**: Zod
+- **Logging**: Winston
 - **Security**: Helmet, CORS, Rate limiting
 
 ### DevOps
 - **Containerization**: Docker
-- **CI/CD**: GitHub Actions (inferred)
+- **CI/CD**: GitHub Actions
 - **Version Control**: Git
 
 ## Project Structure
 
 ```
 student-jobs-platform/
-├── backend/               # Express.js API server
-│   ├── prisma/            # Database schema and migrations
+├── backend/                  # Express.js API server
+│   ├── prisma/               # Database schema and migrations
+│   │   ├── migrations/       # Database migrations
+│   │   │   ├── functions/    # Custom SQL functions
+│   │   ├── schema.prisma     # Prisma schema definition
+│   │   └── seed.ts           # Database seeding script
+│   ├── scripts/              # Utility scripts
+│   │   └── post-migration.js # Post-migration script
+│   ├── src/
+│   │   ├── api/              # API layer
+│   │   │   ├── controllers/  # Request handlers
+│   │   │   ├── middlewares/  # Express middlewares
+│   │   │   └── routes/       # API route definitions
+│   │   ├── services/         # Business logic layer
+│   │   │   ├── database/     # Database service
+│   │   │   ├── gdpr/         # GDPR compliance services
+│   │   │   └── users/        # User-related services
+│   │   └── utils/            # Utility functions and helpers
+│   ├── app.ts                # Express application setup
+│   └── server.ts             # Server entry point
+├── frontend/                 # Next.js web application
+│   ├── public/               # Static assets
 │   └── src/
-│       ├── api/           # API routes, controllers, middlewares
-│       ├── services/      # Business logic layer
-│       └── utils/         # Utility functions and helpers
-├── frontend/              # Next.js web application
-│   ├── public/            # Static assets
-│   └── src/
-│       ├── app/           # Next.js 13+ app router
-│       ├── components/    # Reusable UI components
-│       └── pages/         # Page components
-├── docker/                # Docker configuration files
-└── docs/                  # Project documentation
-    └── gdpr/              # GDPR compliance documentation
+│       ├── app/              # Next.js 13+ app router
+│       ├── components/       # Reusable UI components
+│       │   └── layout/       # Layout components (navbar, footer, etc)
+│       └── pages/            # Page components
+├── docker/                   # Docker configuration files
+│   ├── backend.Dockerfile    # Backend container config
+│   ├── frontend.Dockerfile   # Frontend container config
+│   └── docker-compose.yml    # Multi-container setup
+├── docs/                     # Project documentation
+│   ├── testing-strategy.md   # Testing approach documentation
+│   ├── api/                  # API documentation
+│   └── gdpr/                 # GDPR compliance documentation
+└── scripts/                  # Project-wide scripts
 ```
 
 ## Core Features
@@ -69,7 +90,7 @@ student-jobs-platform/
    - Job recommendations based on education area
 
 4. **Job Aggregation**:
-   - Automated collection from multiple sources
+   - Automated collection from multiple sources (JobTech API, Academic Work, LinkedIn)
    - Daily updates
    - Standardized job info display
 
@@ -77,11 +98,13 @@ student-jobs-platform/
 
 The key entities in the system include:
 
-- **Jobs**: Job listings with title, company, location, description, and more
+- **Jobs**: Job listings with title, company, location, description, requirements, and more
 - **Users**: Student profiles with authentication info and preferences
+- **Companies**: Organizations posting jobs with verification status
+- **Education Areas**: Hierarchical structure of study fields
+- **Cities**: Geographic locations with region and country information
 - **Bookmarks**: Saved job listings for each user
-- **User Preferences**: Personalization settings including preferred locations and education areas
-- **Search History**: Record of search queries for improved recommendations
+- **Job Sources**: Configuration for different job listing sources
 
 ## GDPR Compliance
 
@@ -91,6 +114,7 @@ The application is designed with GDPR principles in mind:
 - User data export and deletion capabilities
 - Anonymization options
 - Secure data handling
+- Consent middleware for validating user permissions
 
 ## Getting Started
 
@@ -118,6 +142,7 @@ The application is designed with GDPR principles in mind:
    npm install
    npx prisma generate
    npx prisma migrate dev
+   npx prisma db seed
    ```
 
 4. Setup frontend:
@@ -133,7 +158,7 @@ The application is designed with GDPR principles in mind:
 
 #### Using Docker:
 ```bash
-docker-compose up
+docker-compose -f docker/docker-compose.yml up
 ```
 
 #### Manual Development Setup:
