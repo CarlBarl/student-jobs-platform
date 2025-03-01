@@ -25,6 +25,12 @@ This platform is designed to connect students with relevant part-time job opport
 - **Logging**: Winston
 - **Security**: Helmet, CORS, Rate limiting
 
+### External APIs
+- **JobTech API**: Swedish Public Employment Service API
+  - Real-time job listings
+  - Advanced search capabilities
+  - Taxonomy integration
+
 ### DevOps
 - **Containerization**: Docker
 - **CI/CD**: GitHub Actions
@@ -50,8 +56,13 @@ student-jobs-platform/
 │   │   ├── services/         # Business logic layer
 │   │   │   ├── database/     # Database service
 │   │   │   ├── gdpr/         # GDPR compliance services
+│   │   │   ├── scrapers/     # Job source integrations
+│   │   │   │   ├── jobtech/  # JobTech API integration
+│   │   │   │   │   ├── jobtechTypes.ts    # API type definitions
+│   │   │   │   │   ├── jobtechService.ts  # API client
+│   │   │   │   │   └── jobtechMapper.ts   # Data transformation
 │   │   │   └── users/        # User-related services
-│   │   └── utils/            # Utility functions and helpers
+│   └── utils/                # Utility functions and helpers
 │   ├── app.ts                # Express application setup
 │   └── server.ts             # Server entry point
 ├── frontend/                 # Next.js web application
@@ -75,9 +86,17 @@ student-jobs-platform/
 ## Core Features
 
 1. **Job Search & Filtering**:
+   - Integration with JobTech API for comprehensive job coverage
    - Search by keywords
    - Filter by location and education area
    - Sort by posting date
+   - Advanced filtering options:
+     - Experience level (entry-level focus)
+     - Work hours (full-time/part-time)
+     - Location (municipality-based)
+     - Occupation fields
+   - Multi-language support (Swedish/English)
+   - Real-time search with immediate feedback
 
 2. **User Account Management**:
    - Registration and authentication
@@ -179,6 +198,83 @@ docker-compose -f docker/docker-compose.yml up
 ## API Documentation
 
 API documentation is available at `http://localhost:4000/api-docs` when running in development mode.
+
+## Data Integration
+
+### JobTech API Integration
+The platform leverages the Swedish Public Employment Service's JobTech API as a primary data source:
+
+1. **Search Parameters**:
+   - Keywords (headline, description, employer)
+   - Location (municipality codes)
+   - Experience requirements
+   - Working hours
+   - Occupation fields
+
+2. **Data Mapping**:
+   - Standardized job information format
+   - Education area matching
+   - Location normalization
+   - Multi-language support
+
+3. **Performance Optimization**:
+   - Efficient query construction
+   - Response caching
+   - Error handling and recovery
+   - Rate limit management
+
+4. **Testing Environment**:
+   - Interactive test interface (`/test/jobtech`)
+   - Real-time API testing
+   - Parameter validation
+   - Response visualization
+
+## Development Guidelines
+
+### API Integration Best Practices
+
+1. **Error Handling**:
+   - Implement comprehensive error catching
+   - Provide meaningful error messages
+   - Handle API-specific error codes
+   - Log detailed error information
+
+2. **Data Transformation**:
+   - Use typed interfaces for API responses
+   - Implement data mappers for consistency
+   - Handle missing or null values
+   - Support multiple languages
+
+3. **Testing**:
+   - Create integration tests for API endpoints
+   - Test error scenarios
+   - Validate response formats
+   - Monitor API performance
+
+4. **Documentation**:
+   - Keep API documentation updated
+   - Document common issues and solutions
+   - Maintain example queries and responses
+   - Track API version changes
+
+## Environment Configuration
+
+### Required Environment Variables
+
+#### Backend
+```bash
+# Database Configuration
+DATABASE_URL="postgresql://..."
+
+# JobTech API Configuration
+JOBTECH_API_URL=https://jobsearch.api.jobtechdev.se
+JOBTECH_API_CACHE_MINUTES=15
+JOBTECH_SEARCH_DEFAULT_LIMIT=20
+JOBTECH_SEARCH_MAX_LIMIT=100
+JOBTECH_REQUEST_TIMEOUT_MS=30000
+
+# Other configurations...
+```
 
 ## Testing Strategy
 

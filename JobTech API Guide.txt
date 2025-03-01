@@ -300,6 +300,48 @@ Below is a detailed mapping from JobTech API fields to our platform's internal d
 | `must_have.languages` | Languages with required=true | Required languages |
 | `nice_to_have.languages` | Languages with required=false | Preferred languages |
 
+## Practical Implementation Insights
+
+### Response Structure Details
+Based on test implementation, the API response includes these important fields:
+
+#### Search Results Structure
+- `total.value` - Contains the total number of matching jobs
+- `hits` - Array of job advertisements
+- Each job in the hits array includes:
+  - `headline` - The job title
+  - `id` - Unique identifier for the job
+  - `employer.name` - Company name
+  - `workplace_address.city` - Job location
+  - `publication_date` - ISO format date string
+  - `application_details.url` - Direct application link
+  - `application_details.email` - Application email if available
+
+### Effective Search Strategies
+
+#### Student-Specific Search Parameters
+Testing revealed these effective parameters for student job searches:
+```javascript
+{
+  q: "student praktik trainee",
+  experience: false,
+  "worktime-extent": ["PART_TIME"],
+  limit: 5,
+  offset: 0
+}
+```
+This combination effectively targets:
+- Entry-level positions
+- Part-time opportunities
+- Internships and trainee positions
+- Jobs explicitly mentioning "student" in the description
+
+### Performance Considerations
+- The API responds quickly to basic queries
+- Including multiple search terms doesn't significantly impact response time
+- The `limit` parameter effectively controls response size and load time
+- Pagination via `offset` works reliably up to the documented limits
+
 ## Error Handling
 
 The integration handles these error cases:

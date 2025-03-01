@@ -297,6 +297,147 @@ describe('JobsPage Accessibility', () => {
 });
 ```
 
+### 7. API Integration Testing
+
+#### JobTech API Testing
+
+1. **Interactive Test UI**
+- Location: `/test/jobtech` route
+- Purpose: Real-time API testing and validation
+- Features:
+  - Search parameter testing
+  - Response format validation
+  - Error handling verification
+  - Multi-language support testing
+
+2. **Test Coverage Areas**
+- Parameter validation
+  - Search query construction
+  - Municipality codes
+  - Experience filters
+  - Work time extent filters
+  - Occupation field codes
+- Response handling
+  - Data structure validation
+  - Null/undefined checks
+  - Multi-language content
+  - Error scenarios
+- Performance aspects
+  - Response times
+  - Pagination handling
+  - Result set sizes
+
+3. **Test Data Examples**
+```typescript
+// Basic student job search test
+const basicSearchTest = {
+  q: "student praktik",
+  experience: false,
+  municipality: "0180",  // Stockholm
+  limit: 10
+};
+
+// Advanced filter test
+const advancedFilterTest = {
+  q: "student programmering",
+  experience: false,
+  worktime_extent: ["PART_TIME"],
+  occupation_field: "3",  // Data/IT
+  limit: 10
+};
+```
+
+4. **Error Scenario Testing**
+- Invalid parameter combinations
+- Network failures
+- Rate limiting
+- Malformed responses
+- Edge cases:
+  - Empty result sets
+  - Maximum result limits
+  - Special characters in search
+  - Invalid location codes
+
+5. **Integration Test Infrastructure**
+```typescript
+// Example of JobTech API integration test
+describe('JobTech API Integration', () => {
+  it('handles search with all parameters correctly', async () => {
+    const params = {
+      q: "student",
+      experience: false,
+      worktime_extent: ["PART_TIME"],
+      municipality: "0180",
+      occupation_field: "3",
+      limit: 5
+    };
+
+    const response = await searchJobs(params);
+    
+    expect(response.status).toBe(200);
+    expect(response.data.total.value).toBeGreaterThanOrEqual(0);
+    expect(Array.isArray(response.data.hits)).toBe(true);
+  });
+
+  it('handles error scenarios gracefully', async () => {
+    const invalidParams = {
+      municipality: "invalid-code",
+      limit: 5
+    };
+
+    try {
+      await searchJobs(invalidParams);
+    } catch (error) {
+      expect(error.response.status).toBe(400);
+      expect(error.response.data).toHaveProperty('error');
+    }
+  });
+});
+```
+
+6. **UI Component Testing**
+```typescript
+describe('JobTech Search Component', () => {
+  it('updates search parameters correctly', async () => {
+    render(<JobTechTest />);
+    
+    // Test municipality selection
+    await userEvent.selectOptions(
+      screen.getByLabelText(/stad/i),
+      "0180"
+    );
+    
+    // Test work time filter
+    await userEvent.click(screen.getByLabelText(/deltid/i));
+    
+    // Verify search parameters
+    await userEvent.click(screen.getByRole('button', { name: /sök/i }));
+    expect(mockSearchFunction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        municipality: "0180",
+        worktime_extent: ["PART_TIME"]
+      })
+    );
+  });
+});
+```
+
+7. **Performance Testing Considerations**
+- Response time benchmarks:
+  - Basic search: < 500ms
+  - Complex filters: < 1000ms
+  - Large result sets: < 2000ms
+- Cache effectiveness monitoring
+- Rate limit tracking
+- Error rate monitoring
+
+8. **Documentation Testing**
+- API endpoint documentation accuracy
+- Parameter description correctness
+- Response format documentation
+- Error code documentation
+- Example request/response pairs
+
 ## Testautomatisering
 
 ### CI/CD Pipeline
