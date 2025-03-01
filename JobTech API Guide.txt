@@ -1,0 +1,392 @@
+# JobTech API Integration Guide
+
+## Overview
+
+This document outlines the step-by-step process for integrating the Swedish Public Employment Service's JobTech API into the Student Jobs Platform. The JobTech API provides access to current job listings across Sweden and will serve as a primary data source for our platform.
+
+## API Basics
+
+- **Base URL**: `https://jobsearch.api.jobtechdev.se`
+- **Key Endpoints**:
+  - `/search` - Search for job ads with filtering and pagination
+  - `/ad/{id}` - Get a specific job ad by ID
+  - `/ad/{id}/logo` - Get the employer logo for a job
+  - `/complete` - Auto-complete functionality for search queries (typeahead)
+
+### Detailed Endpoint Information
+
+#### Search API (`/search`)
+The most powerful endpoint that supports numerous filtering options:
+
+- **Key Parameters**:
+  - `q` - Freetext search query (searches in headline, description, employer name)
+  - `occupation-field`, `occupation-group`, `occupation-name` - Job classification filters
+  - `skill` - Filter by required skills 
+  - `municipality`, `region`, `country` - Location filters
+  - `remote` - Filter for remote work opportunities
+  - `employment-type` - Type of employment (permanent, temporary, etc.)
+  - `experience` - Filter for jobs not requiring experience
+  - `published-after` - Recent job postings
+  - `limit` & `offset` - Pagination controls
+  - `sort` - Sorting options (relevance, publication date, etc.)
+  - `stats` - Return statistics for specified fields
+
+#### Single Ad API (`/ad/{id}`)
+Retrieve complete details for a specific job posting:
+
+- Returns detailed information including:
+  - Job description, requirements, conditions
+  - Employer details
+  - Location information
+  - Required skills, languages, education
+  - Application instructions and deadlines
+  
+#### Auto-Complete API (`/complete`)
+Provides typeahead suggestions for search queries:
+
+- Helps users construct effective search queries
+- Returns matching terms with occurrence counts
+- Supports contextual suggestions
+
+## Integration Architecture
+
+The integration will follow a three-layer architecture:
+
+1. **API Client Layer** - Direct communication with JobTech API
+2. **Transformation Layer** - Converting JobTech data format to our internal model
+3. **Service Layer** - Business logic for job search and aggregation
+
+## Implementation Steps
+
+### 1. Set Up Environment Variables
+
+Add the following to your `.env` file in the backend directory:
+
+```
+# JobTech API Configuration
+JOBTECH_API_URL=https://jobsearch.api.jobtechdev.se
+JOBTECH_API_CACHE_MINUTES=15
+JOBTECH_SEARCH_DEFAULT_LIMIT=20
+JOBTECH_SEARCH_MAX_LIMIT=100
+JOBTECH_REQUEST_TIMEOUT_MS=30000
+```
+
+### 2. Create Type Definitions
+
+Create file: `backend/src/services/scrapers/jobtech/jobtechTypes.ts`
+
+This file will contain TypeScript interfaces matching the JobTech API response structure, including:
+- `JobTechSearchParams` - Parameters for search queries
+- `JobTechSearchResponse` - Search response format
+- `JobTechAd` - Job advertisement structure
+- Supporting types for job details, employer information, etc.
+
+### 3. Create API Client
+
+Create file: `backend/src/services/scrapers/jobtech/jobtechService.ts`
+
+This service will:
+- Initialize an Axios client configured for the JobTech API
+- Implement methods for searching jobs and fetching individual jobs
+- Handle error cases gracefully
+- Implement caching to reduce API calls
+- Log API operations for monitoring
+
+### 4. Create Data Mapper
+
+Create file: `backend/src/services/scrapers/jobtech/jobtechMapper.ts`
+
+This mapper will:
+- Transform JobTech's data format into our internal job model
+- Extract and normalize education areas, skills, and other taxonomies
+- Format location data consistently
+- Handle different date formats
+
+### 5. Create Job Aggregation Service
+
+Create file: `backend/src/services/jobs/jobAggregationService.ts`
+
+This service will:
+- Coordinate job fetching from multiple sources (JobTech + other scrapers)
+- De-duplicate job listings
+- Apply filters based on our platform's needs (student-relevant jobs)
+- Track source attribution
+
+### 6. Update Controller Layer
+
+Update file: `backend/src/api/controllers/jobsController.ts`
+
+Add endpoints that:
+- Pass search parameters to the job aggregation service
+- Format responses according to our API conventions
+- Handle pagination and sorting
+
+### 7. Create Test Script
+
+Create file: `backend/src/scripts/test-jobtech-api.ts`
+
+A simple script to:
+- Test the connection to the JobTech API
+- Verify data structure
+- Ensure our mappers work correctly
+
+## Testing the Integration
+
+### Basic Connection Test
+
+1. Run the test script:
+```bash
+cd backend
+npx ts-node src/scripts/test-jobtech-api.ts
+```
+
+2. Verify the API responses match our type definitions
+3. Test the transformation to our internal format
+4. Check that pagination and filtering work correctly
+
+### Student-Specific Search Test
+
+Create a specialized test for student-relevant jobs:
+
+```bash
+cd backend
+npx ts-node src/scripts/test-student-jobs.ts
+```
+
+This script will:
+1. Search for part-time positions
+2. Filter for jobs not requiring experience
+3. Look for specific student-friendly keywords
+4. Test education area mapping
+
+### Sample Search Queries for Testing
+
+Here are some example queries to test the API functionality:
+
+#### Basic Student Jobs Search
+```javascript
+// Student-focused job search
+const studentJobsParams = {
+  q: "student",
+  experience: false,
+  "worktime-extent": ["PART_TIME"],
+  sort: "pubdate-desc",
+  limit: 20
+};
+```
+
+#### Location-Based Search
+```javascript
+// Jobs in Stockholm for students
+const stockholmStudentJobs = {
+  q: "student",
+  municipality: ["0180"],  // Stockholm municipality code
+  "position.radius": 30,    // 30km radius
+  limit: 20
+};
+```
+
+#### Education Field Search
+```javascript
+// IT/CS student jobs
+const itStudentJobs = {
+  q: "student programmering",
+  "occupation-field": ["3"],  // Data/IT field code
+  experience: false,
+  limit: 20
+};
+```
+
+## Working with JobTech Data
+
+### Search Parameters
+
+The JobTech API supports numerous search parameters:
+
+#### Core Search Parameters
+- `q` - Freetext search query (searches in headline, description, employer name)
+- `offset`/`limit` - Pagination (offset 0-2000, limit 0-100)
+- `sort` - Sorting options:
+  - `relevance` - Sort by relevance score (default)
+  - `pubdate-desc` - Newest jobs first
+  - `pubdate-asc` - Oldest jobs first
+  - `applydate-desc` - Jobs with latest application deadline first
+  - `applydate-asc` - Jobs with closest application deadline first
+  - `updated` - Sort by update date
+- `stats` - Return statistics for specified fields
+- `stats.limit` - Maximum number of statistical rows per field
+
+#### Location Filters
+- `municipality` - One or more municipality codes
+- `region` - One or more region codes
+- `country` - One or more country codes
+- `position` - Latitude and longitude in format "59.329,18.068"
+- `position.radius` - Search radius in kilometers
+- `remote` - Set to true to include remote work opportunities
+- `unspecified-sweden-workplace` - Include jobs with unspecified workplace in Sweden
+- `abroad` - Include jobs outside Sweden
+
+#### Job Category Filters
+- `occupation-name` - Specific occupation codes
+- `occupation-group` - Broader occupation group codes
+- `occupation-field` - Occupational field/area codes
+- `occupation-collection` - Collection of occupations
+
+#### Employment Terms
+- `employment-type` - Type of employment (permanent, temporary, etc.)
+- `worktime-extent` - Full-time, part-time, etc.
+- `parttime.min`/`parttime.max` - Range for part-time percentage
+- `duration` - Employment duration codes
+
+#### Experience & Requirements
+- `experience` - Set to false to filter jobs not requiring experience
+- `skill` - Required skills according to taxonomy
+- `language` - Required languages
+- `driving-license-required` - Filter by driving license requirement
+- `driving-license` - Specific types of driving licenses required
+
+#### Special Filters
+- `trainee` - Include trainee positions
+- `larling` - Include apprenticeship positions
+- `open_for_all` - Jobs open for all applicants
+- `published-after`/`published-before` - Publication date range
+
+### Job Schema Mapping
+
+Below is a detailed mapping from JobTech API fields to our platform's internal data model:
+
+| JobTech Field | Our Platform Field | Description |
+|---------------|-------------------|-------|
+| `id` | `externalId` | Store original ID for reference |
+| `headline` | `title` | Job title |
+| `description.text` | `description` | Main job description |
+| `description.text_formatted` | `descriptionFormatted` | HTML-formatted description |
+| `description.company_information` | `companyInformation` | Information about the employer |
+| `description.requirements` | `requirements` | Job requirements |
+| `description.conditions` | `conditions` | Working conditions |
+| `employer.name` | `company.name` | Employer name |
+| `employer.organization_number` | `company.organizationNumber` | Company registration number |
+| `employer.url` | `company.website` | Company website |
+| `employer.email` | `company.email` | Company email |
+| `employer.phone_number` | `company.phone` | Company phone number |
+| `workplace_address.city` | `location.city` | City location |
+| `workplace_address.municipality` | `location.municipality` | Municipality name |
+| `workplace_address.region` | `location.region` | Region/county name |
+| `workplace_address.street_address` | `location.address` | Street address |
+| `workplace_address.postcode` | `location.postalCode` | Postal code |
+| `workplace_address.coordinates` | `location.coordinates` | Geo coordinates [lat, long] |
+| `application_details.email` | `applicationDetails.email` | Application email |
+| `application_details.url` | `applicationDetails.url` | Application URL |
+| `application_details.reference` | `applicationDetails.reference` | Reference code |
+| `application_details.information` | `applicationDetails.information` | Application instructions |
+| `application_deadline` | `applicationDetails.deadlineDate` | Application deadline |
+| `employment_type.label` | `employmentType` | Type of employment |
+| `working_hours_type.label` | `workingHoursType` | Full-time, part-time, etc. |
+| `duration.label` | `duration` | Permanent, temporary, etc. |
+| `salary_description` | `salary` | Salary information |
+| `salary_type.label` | `salaryType` | Fixed, by agreement, etc. |
+| `scope_of_work` | `scopeOfWork` | Work percentage (min/max) |
+| `publication_date` | `publicationDate` | When job was posted |
+| `last_publication_date` | `lastPublicationDate` | When job was last updated |
+| `removed_date` | `expirationDate` | When job expires |
+| `occupation.label` | `occupation.name` | Specific occupation |
+| `occupation.concept_id` | `occupation.id` | Occupation taxonomy ID |
+| `occupation_group.label` | `occupationGroup.name` | Broader occupation group |
+| `occupation_field.label` | `occupationField.name` | Occupation field/area |
+| `must_have.skills` | Skills with required=true | Required skills |
+| `nice_to_have.skills` | Skills with required=false | Preferred skills |
+| `must_have.education` | Maps to education areas (required=true) | Required education |
+| `nice_to_have.education` | Maps to education areas (required=false) | Preferred education |
+| `must_have.languages` | Languages with required=true | Required languages |
+| `nice_to_have.languages` | Languages with required=false | Preferred languages |
+
+## Error Handling
+
+The integration handles these error cases:
+- API connection failures - Return empty results
+- Rate limiting - Implement exponential backoff
+- Data format changes - Log errors for investigation
+- Missing required fields - Apply defaults when possible
+
+## Monitoring Considerations
+
+- Log all API calls for debugging
+- Track API response times
+- Monitor error rates
+- Set up alerts for connection issues
+
+## Enhancement Roadmap
+
+1. **Initial Integration** - Basic search and job details
+   - Implement core API client and data mapping
+   - Create basic search endpoints
+   - Add job detail display
+
+2. **Taxonomy Integration** - Map JobTech taxonomies to our education areas
+   - Connect to JobTech Taxonomy API
+   - Build education field to occupation field mappings
+   - Create taxonomy cache for performance
+
+3. **Student-Specific Filtering** - Customize for student needs
+   - Create preset filters for student-relevant jobs
+   - Build "no experience required" filtering
+   - Implement part-time work search functionality
+   - Add filters for internships and trainee positions
+
+4. **Advanced Caching Strategy** - Optimize API usage
+   - Implement Redis for distributed caching
+   - Add intelligent cache invalidation
+   - Set up background refresh for popular searches
+
+5. **Relevance Improvement** - Better search results
+   - Implement custom scoring for student relevance
+   - Add education-occupation matching algorithms
+   - Create personalized result ranking
+
+6. **Automated Testing & Monitoring** 
+   - Create comprehensive integration tests
+   - Add API health checks
+   - Implement usage monitoring and analytics
+   - Set up alerts for API changes or issues
+
+## References
+
+- [JobTech Search API Documentation](https://jobsearch.api.jobtechdev.se/swagger)
+- [JobTech Taxonomy Service](https://taxonomy.api.jobtechdev.se/v1/taxonomy/swagger-ui/index.html)
+- [JobTech Dev Platform](https://jobtechdev.se/en)
+- [JobTech GitHub Examples](https://github.com/JobtechSwe)
+- [Swedish Public Employment Service](https://arbetsformedlingen.se/)
+
+## Useful API Codes
+
+### Common Municipality Codes
+- `0180` - Stockholm
+- `1480` - Göteborg
+- `1280` - Malmö
+- `0580` - Linköping
+- `1880` - Örebro
+- `0380` - Uppsala
+- `2480` - Umeå
+- `2580` - Luleå
+
+### Occupation Field Codes (relevant for students)
+- `3` - Data/IT
+- `5` - Education
+- `9` - Natural sciences/Research
+- `11` - Economics/Administration
+- `12` - Healthcare
+- `18` - Technology/Engineering
+- `22` - Culture/Media/Design
+
+### Employment Types
+- `1` - Permanent employment
+- `2` - Temporary employment
+- `3` - Seasonal work
+- `4` - Trial employment
+
+### Working Hours Types
+- `1` - Full-time
+- `2` - Part-time
+- `3` - Varying working hours
+
+This integration document serves as a guide for implementing and maintaining the JobTech API connection in the Student Jobs Platform.
